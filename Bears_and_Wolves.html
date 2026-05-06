@@ -1,0 +1,191 @@
+```html id="switchable-animals-tracker"
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beasts Tracker (Bears & Wolves)</title>
+<style>
+body { font-family: Arial, sans-serif; background:#1e1e1e; color:white; text-align:center; margin:0; padding:10px; }
+h1 { font-size:24px; margin-bottom:10px; }
+.statBlock { background:#2c2c2c; border-radius:10px; padding:10px; margin:10px auto; max-width:600px; text-align:left; }
+button { font-size:16px; padding:8px 12px; margin:4px; border-radius:6px; border:none; cursor:pointer; }
+.rollBtn { background:#4caf50; color:white; }
+.clearBtn { background:#c0392b; color:white; }
+.switchBtn { background:#3498db; color:white; }
+.hit { color:#2ecc71; font-weight:bold; font-size:18px; }
+.miss { color:#e74c3c; font-weight:bold; font-size:18px; }
+.crit { color:gold; font-weight:bold; font-size:22px; }
+.dmg { font-size:20px; font-weight:bold; margin-left:5px; }
+.hpInput, .acInput { width:55px; font-size:16px; text-align:center; }
+select { font-size:16px; padding:4px; margin:4px; }
+.output { background:#2c2c2c; padding:5px; border-radius:6px; margin-top:5px; }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+
+<h1>Beast Tracker</h1>
+
+<button class="switchBtn" onclick="showBears()">Show Bears</button>
+<button class="switchBtn" onclick="showWolves()">Show Wolves</button>
+
+<div class="statBlock">
+<b>Group Initiative:</b>
+<span id="groupInit">Not rolled</span>
+<button class="rollBtn" onclick="rollGroupInitiative()">Roll Initiative</button>
+</div>
+
+<div class="statBlock">
+<b>AC Override:</b> <input type="number" id="acOverrideInput" class="acInput">
+<button class="rollBtn" onclick="applyACOverride()">Apply to All</button>
+</div>
+
+<div id="bearsContainer"></div>
+<div id="wolvesContainer" class="hidden"></div>
+
+<script>
+let currentMode = "bears";
+
+function showBears(){
+    currentMode="bears";
+    document.getElementById("bearsContainer").classList.remove("hidden");
+    document.getElementById("wolvesContainer").classList.add("hidden");
+}
+function showWolves(){
+    currentMode="wolves";
+    document.getElementById("wolvesContainer").classList.remove("hidden");
+    document.getElementById("bearsContainer").classList.add("hidden");
+}
+
+function rollDie(s){ return Math.floor(Math.random()*s)+1; }
+function rollDice(n,s){ let rolls=[],t=0; for(let i=0;i<n;i++){let r=rollDie(s); rolls.push(r); t+=r;} return {rolls,t}; }
+function rollD20(mode){
+    let r1=rollDie(20);
+    if(mode==="normal") return {r:r1,t:r1};
+    let r2=rollDie(20);
+    if(mode==="adv") return {r:Math.max(r1,r2),t:r1+" , "+r2};
+    if(mode==="dis") return {r:Math.min(r1,r2),t:r1+" , "+r2};
+}
+
+// ---------- COMMON ----------
+function savingThrow(mod,mode){
+    let d=rollD20(mode);
+    return `d20[${d.t}] + ${mod} → <b>${d.r+mod}</b>`;
+}
+
+function rollGroupInitiative(){
+    let d=rollD20("normal");
+    document.getElementById("groupInit").innerHTML=`d20[${d.t}] + 0 → ${d.r}`;
+}
+
+function applyACOverride(){
+    let val=parseInt(document.getElementById("acOverrideInput").value);
+    if(isNaN(val)) return;
+    let prefix = currentMode==="bears" ? "bear" : "wolf";
+    let count = currentMode==="bears" ? 4 : 8;
+    for(let i=1;i<=count;i++){
+        document.getElementById(prefix+"AC"+i).value=val;
+    }
+}
+
+// ---------- BEARS ----------
+function bearAttack(i){
+    let ac=parseInt(document.getElementById("bearAC"+i).value)||0;
+    let mode=document.getElementById("bearAtkMode"+i).value;
+
+    function atk(mod,dice,sides,bonus,name){
+        let d=rollD20(mode);
+        let crit=d.r===20;
+        let total=d.r+mod;
+        if(total<ac){
+            return `${name}: d20[${d.t}] + ${mod} → <span class="miss">${total}</span><br>`;
+        }
+        let dCount=dice*(crit?2:1);
+        let dmg=rollDice(dCount,sides);
+        let dmgTotal=dmg.t+bonus;
+        let cls=crit?"crit":"hit";
+        return `${name}: d20[${d.t}] + ${mod} → <span class="${cls}">${total}</span>
+        <span class="dmg ${cls}"> dmg [${dmg.rolls}] + ${bonus} = ${dmgTotal}</span><br>`;
+    }
+
+    let output = atk(3,1,6,2,"Bite")+atk(3,2,4,2,"Claw");
+    document.getElementById("bearAtk"+i).innerHTML=output;
+}
+
+// ---------- WOLVES ----------
+function wolfAttack(i){
+    let ac=parseInt(document.getElementById("wolfAC"+i).value)||0;
+    let mode=document.getElementById("wolfAtkMode"+i).value;
+
+    let d=rollD20(mode);
+    let crit=d.r===20;
+    let total=d.r+4;
+
+    if(total<ac){
+        document.getElementById("wolfAtk"+i).innerHTML=
+        `Bite: d20[${d.t}] + 4 → <span class="miss">${total}</span>`;
+        return;
+    }
+
+    let dice=2*(crit?2:1);
+    let dmg=rollDice(dice,4);
+    let dmgTotal=dmg.t+2;
+    let cls=crit?"crit":"hit";
+
+    document.getElementById("wolfAtk"+i).innerHTML=
+    `Bite: d20[${d.t}] + 4 → <span class="${cls}">${total}</span>
+    <span class="dmg ${cls}"> dmg [${dmg.rolls}] + 2 = ${dmgTotal}</span>`;
+}
+
+// ---------- CREATE BEARS ----------
+for(let i=1;i<=4;i++){
+    let div=document.createElement("div");
+    div.className="statBlock";
+    div.innerHTML=`
+<b>Bear ${i}</b><br>
+HP: <input id="bearHP${i}" class="hpInput" value="19">
+Temp HP: <input id="bearTemp${i}" class="hpInput" value="0"><br>
+Target AC: <input id="bearAC${i}" class="acInput" value="15"><br>
+
+Attack Mode:
+<select id="bearAtkMode${i}">
+<option value="normal">Normal</option>
+<option value="adv">Adv</option>
+<option value="dis">Dis</option>
+</select><br>
+
+<div id="bearAtk${i}" class="output"></div>
+<button class="rollBtn" onclick="bearAttack(${i})">Roll Attacks</button>
+<button class="clearBtn" onclick="document.getElementById('bearAtk${i}').innerHTML=''">Reset</button>
+`;
+    document.getElementById("bearsContainer").appendChild(div);
+}
+
+// ---------- CREATE WOLVES ----------
+for(let i=1;i<=8;i++){
+    let div=document.createElement("div");
+    div.className="statBlock";
+    div.innerHTML=`
+<b>Wolf ${i}</b><br>
+HP: <input id="wolfHP${i}" class="hpInput" value="11">
+Temp HP: <input id="wolfTemp${i}" class="hpInput" value="0"><br>
+Target AC: <input id="wolfAC${i}" class="acInput" value="15"><br>
+
+Attack Mode:
+<select id="wolfAtkMode${i}">
+<option value="normal">Normal</option>
+<option value="adv">Adv</option>
+<option value="dis">Dis</option>
+</select><br>
+
+<div id="wolfAtk${i}" class="output"></div>
+<button class="rollBtn" onclick="wolfAttack(${i})">Roll Bite</button>
+<button class="clearBtn" onclick="document.getElementById('wolfAtk${i}').innerHTML=''">Reset</button>
+`;
+    document.getElementById("wolvesContainer").appendChild(div);
+}
+</script>
+
+</body>
+</html>
+```
